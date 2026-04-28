@@ -6,7 +6,8 @@ from app.services.embeddings import SentenceTransformerEmbeddings
 def ingest_jobs(batch_size=50):
     """Ingest all jobs into vector database"""
     print("Loading cleaned jobs...")
-    df = pd.read_csv("data/processed/cleaned_jobs.csv")
+    # Change this line:
+    df = pd.read_csv("data/processed/cleaned_jobs_small.csv")  # instead of cleaned_jobs.csv
     print(f"Found {len(df)} jobs")
     
     # Initialize
