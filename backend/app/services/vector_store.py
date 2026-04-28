@@ -1,20 +1,24 @@
-import chromadb
-from chromadb.config import Settings
+from langchain_community.vectorstores import Chroma
+from sentence_transformers import SentenceTransformer
+from langchain.embeddings.base import Embeddings
 
-client = chromadb.Client(
-    Settings(persist_directory="vector_db")
-)
+from app.core.config import VECTOR_DB_DIR
 
-collection = client.get_or_create_collection(name="resumes")
+class SentenceTransformerEmbeddings(Embeddings):
+    def __init__(self):
+        self.model = SentenceTransformer("all-MiniLM-L6-v2")
 
+    def embed_documents(self, texts):
+        return self.model.encode(texts).tolist()
 
-def add_document(doc_id: str, text: str, embedding):
-    collection.add(
-        documents=[text],
-        embeddings=[embedding],
-        ids=[doc_id]
+    def embed_query(self, text):
+        return self.model.encode(text).tolist()
+
+def get_vector_store():
+    embeddings = SentenceTransformerEmbeddings()
+
+    vectordb = Chroma(
+        persist_directory=str(VECTOR_DB_DIR),
+        embedding_function=embeddings,
     )
-
-
-def persist_db():
-    client.persist()
+    return vectordb
