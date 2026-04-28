@@ -6,4 +6,5 @@ nltk
 sentence-transformers
 chromadb
 pypdf
-tqdm
+tqdmpandas==2.1.0
+numpy==1.24.3
