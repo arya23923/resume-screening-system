@@ -1,14 +1,16 @@
-from pypdf import PdfReader
+from langchain_community.document_loaders import PyPDFLoader
+from pathlib import Path
 
+def load_resume_documents(resume_dir: Path):
+    docs = []
+    for pdf in resume_dir.glob("*.pdf"):
+        loader = PyPDFLoader(str(pdf))
+        docs.extend(loader.load())
+    return docs
 
-def load_pdf(path: str) -> str:
-    reader = PdfReader(path)
-    text = ""
-    for page in reader.pages:
-        text += page.extract_text() + " "
-    return text
-
-
-def load_txt(path: str) -> str:
-    with open(path, "r", encoding="utf-8") as f:
-        return f.read()
+def load_job_documents(job_dir: Path):
+    docs = []
+    for pdf in job_dir.glob("*.pdf"):
+        loader = PyPDFLoader(str(pdf))
+        docs.extend(loader.load())
+    return docs
