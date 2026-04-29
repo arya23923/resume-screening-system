@@ -55,6 +55,8 @@ class IngestResponse(BaseModel):
     message: str
     count: int
     errors: List[str] = []
+    id: Optional[str] = None
+    preview: Optional[str] = None
 
 # ─── Stats ──────────────────────────────────────────────
 class StatsResponse(BaseModel):

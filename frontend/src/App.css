@@ -26,7 +26,28 @@
   --radius-sm: 8px;
 }
 
-body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+[data-theme="dark"] {
+  --bg:       #121212;
+  --surface:  #1e1e1e;
+  --surface2: #252525;
+  --border:   #333333;
+  --border2:  #444444;
+  --text:     #e0e0e0;
+  --text2:    #a0a0a0;
+  --text3:    #777777;
+  --c-blue:   #3b82f6;
+  --c-blue-bg:#172554;
+  --c-green:  #22c55e;
+  --c-green-bg:#14532d;
+  --c-amber:  #f59e0b;
+  --c-amber-bg:#78350f;
+  --c-red:    #ef4444;
+  --c-red-bg: #7f1d1d;
+  --c-purple: #8b5cf6;
+  --c-purple-bg:#4c1d95;
+}
+
+body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.55; -webkit-font-smoothing: antialiased; transition: background 0.2s, color 0.2s; }
 
 /* ── Shell ──────────────────────────────────────────── */
 .shell { display: flex; min-height: 100vh; }
@@ -45,8 +66,10 @@ body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-ser
 .nav-ic { display: flex; align-items: center; flex-shrink: 0; }
 .nav-label { flex: 1; }
 .nav-badge { background: var(--c-blue); color: #fff; font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 20px; min-width: 20px; text-align: center; }
-.sidebar-logout { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: var(--radius-sm); border: none; background: transparent; color: var(--text3); font-size: 13px; font-family: inherit; cursor: pointer; transition: color 0.12s; }
-.sidebar-logout:hover { color: var(--c-red); }
+.sidebar-bottom { display: flex; flex-direction: column; gap: 4px; }
+.sidebar-action { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: var(--radius-sm); border: none; background: transparent; color: var(--text3); font-size: 13px; font-family: inherit; cursor: pointer; transition: color 0.12s, background 0.12s; text-align: left; width: 100%; }
+.sidebar-action:hover { color: var(--text); background: var(--surface2); }
+.sidebar-action.logout:hover { color: var(--c-red); }
 
 /* ── Page ───────────────────────────────────────────── */
 .page { max-width: 960px; margin: 0 auto; padding: 36px 32px 60px; }

@@ -76,8 +76,9 @@ function Login({ onLogin }: { onLogin: () => void }) {
 }
 
 // ── Sidebar ────────────────────────────────────────────────────────────────────
-function Sidebar({ view, setView, resumeCount, onLogout }: {
+function Sidebar({ view, setView, resumeCount, onLogout, theme, setTheme }: {
   view: View; setView: (v: View) => void; resumeCount: number; onLogout: () => void;
+  theme: "light" | "dark"; setTheme: (t: "light" | "dark") => void;
 }) {
   const nav = [
     { id: "dashboard" as View,   label: "Dashboard",     icon: <IconDash /> },
@@ -102,15 +103,20 @@ function Sidebar({ view, setView, resumeCount, onLogout }: {
           ))}
         </nav>
       </div>
-      <button className="sidebar-logout" onClick={onLogout}>
-        <IconLogout /> Sign out
-      </button>
+      <div className="sidebar-bottom">
+        <button className="sidebar-action" onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
+          <span style={{ fontSize: "16px" }}>{theme === "light" ? "🌙" : "☀️"}</span> {theme === "light" ? "Dark Mode" : "Light Mode"}
+        </button>
+        <button className="sidebar-action logout" onClick={onLogout}>
+          <IconLogout /> Sign out
+        </button>
+      </div>
     </aside>
   );
 }
 
 // ── Dashboard ──────────────────────────────────────────────────────────────────
-function Dashboard({ setView, resumeCount, stats }: { setView: (v: View) => void; resumeCount: number; stats: any }) {
+function Dashboard({ setView, setResumeTab, resumeCount, stats }: { setView: (v: View) => void; setResumeTab: (t: "all"|"shortlisted") => void; resumeCount: number; stats: any }) {
   const lib = api.getResumeLibrary();
   const recent = lib.slice(0, 4);
 
@@ -122,7 +128,7 @@ function Dashboard({ setView, resumeCount, stats }: { setView: (v: View) => void
       </div>
 
       <div className="dash-stats">
-        <div className="dstat" onClick={() => setView("resumes")} style={{ cursor: "pointer" }}>
+        <div className="dstat" onClick={() => { setResumeTab("all"); setView("resumes"); }} style={{ cursor: "pointer" }}>
           <div className="dstat-num">{resumeCount}</div>
           <div className="dstat-label">Resumes uploaded</div>
         </div>
@@ -131,11 +137,11 @@ function Dashboard({ setView, resumeCount, stats }: { setView: (v: View) => void
           <div className="dstat-label">Jobs indexed</div>
         </div>
         <div className="dstat">
-          <div className="dstat-num">{resumeCount > 0 ? Math.round(resumeCount * 0.68) : 0}</div>
+          <div className="dstat-num">0</div>
           <div className="dstat-label">Candidates reviewed</div>
         </div>
-        <div className="dstat">
-          <div className="dstat-num">{resumeCount > 0 ? Math.round(resumeCount * 0.23) : 0}</div>
+        <div className="dstat" onClick={() => { setResumeTab("shortlisted"); setView("resumes"); }} style={{ cursor: "pointer" }}>
+          <div className="dstat-num">{lib.filter(r => r.shortlisted).length}</div>
           <div className="dstat-label">Shortlisted</div>
         </div>
       </div>
@@ -145,7 +151,7 @@ function Dashboard({ setView, resumeCount, stats }: { setView: (v: View) => void
           <div className="action-icon ac-blue"><IconResumes /></div>
           <div className="action-text">
             <div className="action-title">Upload & View Resumes</div>
-            <div className="action-sub">Upload PDFs, browse your resume library</div>
+            <div className="action-sub">Upload PDFs, Word docs, browse your resume library</div>
           </div>
           <IconChevron />
         </button>
@@ -189,7 +195,7 @@ function Dashboard({ setView, resumeCount, stats }: { setView: (v: View) => void
 }
 
 // ── Resume Library ─────────────────────────────────────────────────────────────
-function ResumesView({ onCountChange }: { onCountChange: () => void }) {
+function ResumesView({ onCountChange, initialTab = "all" }: { onCountChange: () => void; initialTab?: "all" | "shortlisted" }) {
   const [file, setFile] = useState<File | null>(null);
   const [text, setText] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -198,17 +204,16 @@ function ResumesView({ onCountChange }: { onCountChange: () => void }) {
   const [lib, setLib] = useState<StoredResume[]>(api.getResumeLibrary());
   const [selected, setSelected] = useState<StoredResume | null>(null);
   const [search, setSearch] = useState("");
+  const [tab, setTab] = useState<"all" | "shortlisted">(initialTab);
   const [bulkMsg, setBulkMsg] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const refreshLib = () => { const l = api.getResumeLibrary(); setLib(l); onCountChange(); };
 
   const handleFile = (f: File) => {
-    if (!f.type.includes("pdf") && !f.name.endsWith(".txt")) { setErr("Only PDF or TXT files"); return; }
+    const isDoc = f.name.endsWith(".doc") || f.name.endsWith(".docx") || f.type.includes("word");
+    if (!f.type.includes("pdf") && !f.name.endsWith(".txt") && !isDoc) { setErr("Only PDF, TXT, DOC, or DOCX files"); return; }
     setFile(f);
-    const reader = new FileReader();
-    reader.onload = e => setText((e.target?.result as string) || "");
-    reader.readAsText(f);
   };
 
   const handleUpload = async () => {
@@ -217,13 +222,13 @@ function ResumesView({ onCountChange }: { onCountChange: () => void }) {
     try {
       const res = await api.uploadResume(file);
       const id = res.id || `resume_${Date.now()}`;
-      const nameGuess = file.name.replace(/\.(pdf|txt)$/i, "").replace(/[-_]/g, " ");
+      const nameGuess = file.name.replace(/\.(pdf|txt|doc|docx)$/i, "").replace(/[-_]/g, " ");
       api.addToLibrary({
         id, filename: file.name, name: nameGuess, category: "Uploaded",
-        uploadedAt: new Date().toISOString(), preview: text.slice(0, 600), metadata: {},
+        uploadedAt: new Date().toISOString(), preview: res.preview || "Preview not available.", metadata: {},
       });
       setMsg("Resume uploaded and indexed successfully.");
-      setFile(null); setText("");
+      setFile(null);
       refreshLib();
     } catch (e: any) {
       setErr(e.message || "Upload failed");
@@ -244,11 +249,12 @@ function ResumesView({ onCountChange }: { onCountChange: () => void }) {
     } catch (e: any) { setBulkMsg(e.message || "Failed"); }
   };
 
-  const filtered = lib.filter(r =>
-    r.name.toLowerCase().includes(search.toLowerCase()) ||
-    r.filename.toLowerCase().includes(search.toLowerCase()) ||
-    r.category.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = lib.filter(r => {
+    if (tab === "shortlisted" && !r.shortlisted) return false;
+    return r.name.toLowerCase().includes(search.toLowerCase()) ||
+           r.filename.toLowerCase().includes(search.toLowerCase()) ||
+           r.category.toLowerCase().includes(search.toLowerCase());
+  });
 
   return (
     <div className="page">
@@ -265,11 +271,11 @@ function ResumesView({ onCountChange }: { onCountChange: () => void }) {
           onDragOver={e => e.preventDefault()}
           onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
         >
-          <input ref={inputRef} type="file" accept=".pdf,.txt" style={{ display: "none" }}
+          <input ref={inputRef} type="file" accept=".pdf,.txt,.doc,.docx" style={{ display: "none" }}
             onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
           {file
             ? <><span className="dz-icon">📄</span><span className="dz-name">{file.name}</span><span className="dz-hint">Click to change</span></>
-            : <><span className="dz-icon">↑</span><span className="dz-name">Drop a resume here or click to browse</span><span className="dz-hint">PDF or TXT</span></>
+            : <><span className="dz-icon">↑</span><span className="dz-name">Drop a resume here or click to browse</span><span className="dz-hint">PDF, TXT, DOC, DOCX</span></>
           }
         </div>
         <div className="upload-actions">
@@ -285,9 +291,17 @@ function ResumesView({ onCountChange }: { onCountChange: () => void }) {
 
       {/* Library */}
       <div className="library-header">
-        <div className="section-title">{lib.length} resume{lib.length !== 1 ? "s" : ""} in library</div>
+        <div className="section-title">
+          {lib.length} resume{lib.length !== 1 ? "s" : ""} in library
+        </div>
         {lib.length > 0 && (
-          <input className="search-input" placeholder="Search by name or category…" value={search} onChange={e => setSearch(e.target.value)} />
+          <div className="lib-filters" style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+            <div className="tab-group" style={{ display: "flex", gap: "8px" }}>
+              <button className={`btn-ghost ${tab === "all" ? "active" : ""}`} onClick={() => setTab("all")}>All Resumes</button>
+              <button className={`btn-ghost ${tab === "shortlisted" ? "active" : ""}`} onClick={() => setTab("shortlisted")}>Shortlisted ({lib.filter(r => r.shortlisted).length})</button>
+            </div>
+            <input className="search-input" placeholder="Search by name or category…" value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
         )}
       </div>
 
@@ -307,6 +321,13 @@ function ResumesView({ onCountChange }: { onCountChange: () => void }) {
                   <div className="lib-meta">{r.filename} · {timeAgo(r.uploadedAt)}</div>
                 </div>
                 <span className={`lib-cat cat-${r.category.toLowerCase().replace(/\s+/g, "-")}`}>{r.category}</span>
+                <button 
+                  className={`btn-ghost ${r.shortlisted ? "active" : ""}`} 
+                  style={{ marginRight: "8px", padding: "4px 10px", fontSize: "0.8rem", border: r.shortlisted ? "1px solid var(--c-amber)" : "1px solid var(--border)", color: r.shortlisted ? "var(--c-amber)" : "inherit" }} 
+                  onClick={e => { e.stopPropagation(); api.toggleShortlist(r.id); refreshLib(); }}
+                >
+                  {r.shortlisted ? "✓ Shortlisted" : "Shortlist"}
+                </button>
                 <button className="lib-del" onClick={e => { e.stopPropagation(); handleDelete(r.id); }} title="Remove">×</button>
               </div>
             ))}
@@ -437,7 +458,7 @@ We are looking for a skilled software engineer with:
                           {initials(m.metadata?.filename || m.id)}
                         </div>
                         <div className="res-info">
-                          <div className="res-name">{m.metadata?.filename?.replace(/\.(pdf|txt)$/i,"") || m.id}</div>
+                          <div className="res-name">{m.metadata?.filename?.replace(/\.(pdf|txt|doc|docx)$/i,"") || m.id}</div>
                           <div className="res-cat">{m.category || "—"}</div>
                         </div>
                         <div className="res-score">
@@ -496,11 +517,15 @@ function AISummaryView() {
   const [err, setErr] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleFile = (f: File) => {
-    setFile(f); setAnalysis(null); setErr("");
-    const reader = new FileReader();
-    reader.onload = e => setRawText((e.target?.result as string) || "");
-    reader.readAsText(f);
+  const handleFile = async (f: File) => {
+    setFile(f); setAnalysis(null); setErr(""); setRawText("Extracting text...");
+    try {
+      const res = await api.extractText(f);
+      setRawText(res.text || "");
+    } catch (e: any) {
+      setErr("Failed to extract text from file");
+      setRawText("");
+    }
   };
 
   const runAnalysis = async () => {
@@ -526,11 +551,11 @@ function AISummaryView() {
             onDragOver={e => e.preventDefault()}
             onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
           >
-            <input ref={inputRef} type="file" accept=".pdf,.txt" style={{ display: "none" }}
+            <input ref={inputRef} type="file" accept=".pdf,.txt,.doc,.docx" style={{ display: "none" }}
               onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
             {file
               ? <><div className="dz-big-icon">📄</div><div className="dz-big-name">{file.name}</div><div className="dz-hint">Click to change file</div></>
-              : <><div className="dz-big-icon">↑</div><div className="dz-big-name">Drop a resume here</div><div className="dz-hint">PDF or TXT · Click to browse</div></>
+              : <><div className="dz-big-icon">↑</div><div className="dz-big-name">Drop a resume here</div><div className="dz-hint">PDF, TXT, DOC, DOCX · Click to browse</div></>
             }
           </div>
           {file && (
@@ -632,10 +657,17 @@ const IconChevron = () => <svg width="16" height="16" viewBox="0 0 16 16" fill="
 export default function App() {
   const [authed, setAuthed] = useState(!!localStorage.getItem("auth_token"));
   const [view, setView] = useState<View>("dashboard");
+  const [resumeTab, setResumeTab] = useState<"all" | "shortlisted">("all");
   const [resumeCount, setResumeCount] = useState(api.getResumeLibrary().length);
   const [stats, setStats] = useState<any>(null);
+  const [theme, setTheme] = useState<"light" | "dark">((localStorage.getItem("theme") as "light" | "dark") || "light");
 
   const refreshCount = useCallback(() => setResumeCount(api.getResumeLibrary().length), []);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("theme", theme);
+  }, [theme]);
 
   useEffect(() => {
     if (!authed) return;
@@ -646,10 +678,10 @@ export default function App() {
 
   return (
     <div className="shell">
-      <Sidebar view={view} setView={setView} resumeCount={resumeCount} onLogout={() => { api.clearToken(); setAuthed(false); }} />
+      <Sidebar view={view} setView={setView} resumeCount={resumeCount} onLogout={() => { api.clearToken(); setAuthed(false); }} theme={theme} setTheme={setTheme} />
       <main className="content">
-        {view === "dashboard"  && <Dashboard setView={setView} resumeCount={resumeCount} stats={stats} />}
-        {view === "resumes"    && <ResumesView onCountChange={refreshCount} />}
+        {view === "dashboard"  && <Dashboard setView={setView} setResumeTab={setResumeTab} resumeCount={resumeCount} stats={stats} />}
+        {view === "resumes"    && <ResumesView onCountChange={refreshCount} initialTab={resumeTab} />}
         {view === "match"      && <MatchView />}
         {view === "ai-summary" && <AISummaryView />}
       </main>

@@ -8,6 +8,7 @@ export interface StoredResume {
   uploadedAt: string;
   preview: string;
   metadata: Record<string, string>;
+  shortlisted?: boolean;
 }
 
 export interface ResumeMatch {
@@ -126,7 +127,7 @@ class ApiClient {
     };
   }
 
-  async uploadResume(file: File): Promise<{ message: string; id?: string }> {
+  async uploadResume(file: File): Promise<{ message: string; id?: string; preview?: string }> {
     const form = new FormData();
     form.append("file", file);
     const res = await fetch(`${BASE_URL}/ingest/resume/upload`, {
@@ -135,6 +136,18 @@ class ApiClient {
       body: form,
     });
     if (!res.ok) throw new Error("Upload failed");
+    return res.json();
+  }
+
+  async extractText(file: File): Promise<{ text: string }> {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`${BASE_URL}/ingest/extract`, {
+      method: "POST",
+      headers: this.token ? { Authorization: `Bearer ${this.token}` } : {},
+      body: form,
+    });
+    if (!res.ok) throw new Error("Extraction failed");
     return res.json();
   }
 
@@ -158,6 +171,15 @@ class ApiClient {
   removeFromLibrary(id: string) {
     const lib = this.getResumeLibrary().filter(r => r.id !== id);
     localStorage.setItem("resume_library", JSON.stringify(lib));
+  }
+
+  toggleShortlist(id: string) {
+    const lib = this.getResumeLibrary();
+    const idx = lib.findIndex(r => r.id === id);
+    if (idx !== -1) {
+      lib[idx].shortlisted = !lib[idx].shortlisted;
+      localStorage.setItem("resume_library", JSON.stringify(lib));
+    }
   }
 }
 

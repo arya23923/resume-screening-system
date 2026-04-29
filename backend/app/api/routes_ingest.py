@@ -5,7 +5,7 @@ import io
 import uuid
 from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Depends
 from app.models.schemas import IngestResponse
-from app.services.document_loader import extract_text_from_pdf
+from app.services.document_loader import extract_text_from_file
 from app.services.preprocessing import preprocess_pipeline
 from app.services.embeddings import generate_embedding
 from app.services.vector_store import get_vector_store
@@ -19,18 +19,19 @@ async def upload_resume(
     file: UploadFile = File(...),
     # current_user: dict = Depends(get_current_user),  # uncomment to require auth
 ):
-    """Upload a single resume PDF and index it immediately."""
-    if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+    """Upload a single resume document and index it immediately."""
+    ext = file.filename.lower().split(".")[-1]
+    if ext not in ["pdf", "txt", "doc", "docx"]:
+        raise HTTPException(status_code=400, detail="Only PDF, TXT, DOC, and DOCX files are supported")
 
     try:
         contents = await file.read()
         import tempfile, os
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}") as tmp:
             tmp.write(contents)
             tmp_path = tmp.name
 
-        raw_text = extract_text_from_pdf(tmp_path)
+        raw_text = extract_text_from_file(tmp_path)
         os.unlink(tmp_path)
 
         if not raw_text.strip():
@@ -48,10 +49,34 @@ async def upload_resume(
             documents=[cleaned],
         )
 
-        return IngestResponse(message=f"Resume '{file.filename}' indexed successfully", count=1)
+        return IngestResponse(
+            message=f"Resume '{file.filename}' indexed successfully", 
+            count=1,
+            id=doc_id,
+            preview=cleaned[:600]
+        )
 
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/extract")
+async def extract_text(file: UploadFile = File(...)):
+    """Extract text from an uploaded file without indexing it."""
+    ext = file.filename.lower().split(".")[-1]
+    if ext not in ["pdf", "txt", "doc", "docx"]:
+        raise HTTPException(status_code=400, detail="Unsupported file type")
+    try:
+        contents = await file.read()
+        import tempfile, os
+        with tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}") as tmp:
+            tmp.write(contents)
+            tmp_path = tmp.name
+        raw_text = extract_text_from_file(tmp_path)
+        os.unlink(tmp_path)
+        return {"text": raw_text}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
