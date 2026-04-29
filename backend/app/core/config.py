@@ -1,4 +1,5 @@
 from pathlib import Path
+from pydantic_settings import BaseSettings
 
 # Base project directory
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -12,11 +13,35 @@ PROCESSED_DIR = DATA_DIR / "processed"
 # Vector DB directory (Chroma persistence)
 VECTOR_DB_PATH = BASE_DIR / "vector_db"
 VECTOR_DB_PATH.mkdir(parents=True, exist_ok=True)
-
-# IMPORTANT: Chroma needs string path
 VECTOR_DB_DIR = str(VECTOR_DB_PATH)
 
 # Create folders automatically if missing
 RESUME_DIR.mkdir(parents=True, exist_ok=True)
 JOB_DIR.mkdir(parents=True, exist_ok=True)
 PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+
+class Settings(BaseSettings):
+    # App
+    APP_NAME: str = "AI Resume Screening System"
+    DEBUG: bool = False
+    
+    # JWT Auth
+    SECRET_KEY: str = "your-super-secret-jwt-key-change-in-production-32chars"
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
+    
+    # Ollama / LLaMA settings (free, local)
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "llama3.2"  # or llama3, mistral, etc.
+    
+    # Embedding model
+    EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
+    
+    # Matching defaults
+    DEFAULT_TOP_K: int = 10
+
+    class Config:
+        env_file = ".env"
+        extra = "allow"
+
+settings = Settings()
