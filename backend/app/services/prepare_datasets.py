@@ -1,122 +1,81 @@
-# app/services/prepare_datasets.py
-import pandas as pd
+"""
+Prepare raw CSV datasets into cleaned CSVs for ingestion.
+Handles multiple column name variations from Kaggle datasets.
+"""
 import os
+import pandas as pd
 from app.services.preprocessing import preprocess_pipeline
 
-def prepare_resumes():
-    """Process resume CSV file"""
-    input_path = "data/resumes_raw/UpdatedResumeDataSet.csv"
-    output_path = "data/processed/cleaned_resumes.csv"
-    
+
+def prepare_resumes(
+    input_path: str = "data/resumes_raw/UpdatedResumeDataSet.csv",
+    output_path: str = "data/processed/cleaned_resumes.csv",
+) -> pd.DataFrame:
     print(f"📂 Loading resumes from {input_path}")
     df = pd.read_csv(input_path)
-    print(f"📊 Loaded {len(df)} resumes")
-    print(f"📋 Columns: {df.columns.tolist()}")
-    
-    # Find the text column - CHECK FOR THESE POSSIBLE NAMES
-    text_column = None
-    possible_text_columns = ['Resume', 'Resume_str', 'resume_text', 'ResumeText', 'Text']
-    
-    for col in possible_text_columns:
-        if col in df.columns:
-            text_column = col
-            break
-    
-    if text_column is None:
-        print(f"❌ Can't find text column. Available: {df.columns.tolist()}")
-        raise ValueError(f"No resume text column found. Tried: {possible_text_columns}")
-    
-    print(f"📝 Using text column: '{text_column}'")
-    
-    # Apply preprocessing to each resume
-    print("🔄 Cleaning resume texts...")
-    print("⏳ This may take a few minutes...")
-    df['cleaned_text'] = df[text_column].apply(preprocess_pipeline)
-    
-    # Keep category if exists
-    if 'Category' in df.columns:
-        df['category'] = df['Category']
-    else:
-        df['category'] = "Unknown"
-    
-    # Keep ID if exists
-    if 'ID' in df.columns:
-        df['resume_id'] = df['ID']
-    else:
-        df['resume_id'] = [f"resume_{i}" for i in range(len(df))]
-    
-    # Save
-    os.makedirs("data/processed", exist_ok=True)
+    print(f"📊 Loaded {len(df)} resumes | Columns: {df.columns.tolist()}")
+
+    # Find text column
+    text_col = next(
+        (c for c in ["Resume", "Resume_str", "resume_text", "ResumeText", "Text"] if c in df.columns),
+        None,
+    )
+    if text_col is None:
+        raise ValueError(f"No resume text column found. Available: {df.columns.tolist()}")
+    print(f"📝 Using text column: '{text_col}'")
+
+    print("🔄 Preprocessing resumes (this may take a few minutes)…")
+    df["cleaned_text"] = df[text_col].fillna("").apply(preprocess_pipeline)
+    df["original_text"] = df[text_col].fillna("")
+    df["category"] = df["Category"] if "Category" in df.columns else "Unknown"
+    df["resume_id"] = df["ID"].astype(str) if "ID" in df.columns else [f"resume_{i}" for i in range(len(df))]
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     df.to_csv(output_path, index=False)
-    print(f"✅ Saved to {output_path}")
-    print(f"   Sample: {df['cleaned_text'].iloc[0][:100]}...")
-    
+    print(f"✅ Saved {len(df)} cleaned resumes → {output_path}")
     return df
 
-def prepare_jobs():
-    """Process job descriptions CSV file"""
-    input_path = "data/jobs_raw/job_descriptions.csv"
-    output_path = "data/processed/cleaned_jobs.csv"
-    
+
+def prepare_jobs(
+    input_path: str = "data/jobs_raw/job_descriptions.csv",
+    output_path: str = "data/processed/cleaned_jobs.csv",
+) -> pd.DataFrame:
     print(f"\n📂 Loading jobs from {input_path}")
     df = pd.read_csv(input_path)
-    print(f"📊 Loaded {len(df)} jobs")
-    print(f"📋 Columns: {df.columns.tolist()}")
-    
-    # Find the job description column - CHECK FOR THESE POSSIBLE NAMES
-    desc_column = None
-    possible_desc_columns = ['Job Description', 'job_description', 'Description', 'description', 'JD']
-    
-    for col in possible_desc_columns:
-        if col in df.columns:
-            desc_column = col
-            break
-    
-    if desc_column is None:
-        print(f"❌ Can't find description column. Available: {df.columns.tolist()}")
-        raise ValueError(f"No job description column found. Tried: {possible_desc_columns}")
-    
-    print(f"📝 Using description column: '{desc_column}'")
-    
-    # Apply preprocessing
-    print("🔄 Cleaning job descriptions...")
-    df['cleaned_text'] = df[desc_column].apply(preprocess_pipeline)
-    
-    # Extract job title if exists
-    title_column = None
-    possible_title_columns = ['Title', 'title', 'Job Title', 'job_title', 'JobTitle']
-    
-    for col in possible_title_columns:
-        if col in df.columns:
-            title_column = col
-            break
-    
-    if title_column:
-        df['job_title'] = df[title_column]
-        print(f"📌 Using title column: '{title_column}'")
-    else:
-        df['job_title'] = "Unknown"
-        print("📌 No title column found, using 'Unknown'")
-    
-    # Save
+    print(f"📊 Loaded {len(df)} jobs | Columns: {df.columns.tolist()}")
+
+    desc_col = next(
+        (c for c in ["Job Description", "job_description", "Description", "description", "JD"] if c in df.columns),
+        None,
+    )
+    if desc_col is None:
+        raise ValueError(f"No job description column found. Available: {df.columns.tolist()}")
+    print(f"📝 Using description column: '{desc_col}'")
+
+    print("🔄 Preprocessing job descriptions…")
+    df["cleaned_text"] = df[desc_col].fillna("").apply(preprocess_pipeline)
+    df["original_text"] = df[desc_col].fillna("")
+
+    title_col = next(
+        (c for c in ["Title", "title", "Job Title", "job_title", "JobTitle"] if c in df.columns),
+        None,
+    )
+    df["job_title"] = df[title_col] if title_col else "Unknown"
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     df.to_csv(output_path, index=False)
-    print(f"✅ Saved to {output_path}")
-    print(f"   Sample: {df['cleaned_text'].iloc[0][:100]}...")
-    
+    print(f"✅ Saved {len(df)} cleaned jobs → {output_path}")
     return df
 
+
 if __name__ == "__main__":
-    print("="*50)
-    print("DATA PREPARATION PIPELINE")
-    print("="*50)
-    
+    print("=" * 55)
+    print("  DATA PREPARATION PIPELINE")
+    print("=" * 55)
     try:
         prepare_resumes()
         prepare_jobs()
-        print("\n" + "="*50)
-        print("🎉 DATA PREPARATION COMPLETE!")
-        print("="*50)
+        print("\n🎉 DATA PREPARATION COMPLETE!")
     except Exception as e:
         print(f"\n❌ ERROR: {e}")
-        import traceback
-        traceback.print_exc()
+        import traceback; traceback.print_exc()

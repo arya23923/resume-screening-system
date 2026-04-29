@@ -1,104 +1,86 @@
-from app.services.vector_store import VectorStore
+"""
+Matching engine: given a job description, find the top-K resumes
+ranked by cosine similarity.
+"""
+from app.services.vector_store import get_vector_store
+from app.services.embeddings import generate_embedding
+from app.services.preprocessing import preprocess_pipeline
+from app.models.schemas import ResumeMatch
 
-def match_resume_to_jobs(resume_id: str, top_k: int = 5):
-    """Match a resume against all jobs"""
-    try:
-        store = VectorStore()
-        
-        # Get resume embedding
-        result = store.resume_collection.get(ids=[resume_id], include=['embeddings'])
-        
-        # Check if resume exists - SAFE WAY (no numpy array in if statement)
-        if result is None:
-            print(f"Resume {resume_id} not found - no result")
-            return []
-        
-        if len(result['ids']) == 0:
-            print(f"Resume {resume_id} not found in database")
-            return []
-        
-        if len(result['embeddings']) == 0:
-            print(f"No embeddings found for resume {resume_id}")
-            return []
-        
-        # Get embedding (safe to access)
-        resume_embedding = result['embeddings'][0]
-        
-        # Search jobs
-        results = store.job_collection.query(
-            query_embeddings=[resume_embedding],
-            n_results=top_k
+
+def match_resumes_to_job(
+    job_description: str,
+    top_k: int = 10,
+) -> list[ResumeMatch]:
+    """
+    Preprocess job description → embed → cosine-search ChromaDB resumes.
+    Returns ranked list of ResumeMatch objects (score 0–1, higher = better).
+    """
+    # 1. Preprocess + embed the job description
+    processed_jd = preprocess_pipeline(job_description)
+    query_embedding = generate_embedding(processed_jd)
+
+    # 2. Search vector store
+    store = get_vector_store()
+    results = store.search_resumes(query_embedding, top_k=top_k)
+
+    # 3. Build response objects
+    matches: list[ResumeMatch] = []
+    ids = results["ids"][0]
+    distances = results["distances"][0]
+    documents = results["documents"][0]
+    metadatas = results["metadatas"][0]
+
+    for doc_id, dist, doc, meta in zip(ids, distances, documents, metadatas):
+        # ChromaDB cosine distance: 0 = identical, 2 = opposite
+        # Convert to similarity score 0–1
+        score = round(max(0.0, 1.0 - dist), 4)
+
+        matches.append(
+            ResumeMatch(
+                id=doc_id,
+                score=score,
+                category=meta.get("category", meta.get("Category", "Unknown")),
+                preview=doc[:400] if doc else "",
+                metadata=meta,
+            )
         )
-        
-        matches = []
-        # Build matches safely
-        if results and len(results['ids']) > 0 and len(results['ids'][0]) > 0:
-            for i in range(len(results['ids'][0])):
-                distance = results['distances'][0][i] if results.get('distances') else 0
-                similarity = float(1 - distance)
-                
-                matches.append({
-                    'job_id': str(results['ids'][0][i]),
-                    'similarity_score': round(similarity, 4),
-                    'rank': i + 1
-                })
-        
-        return matches
-    
-    except Exception as e:
-        print(f"Error in match_resume_to_jobs: {e}")
-        import traceback
-        traceback.print_exc()
-        return []
+
+    # Sort descending by score
+    matches.sort(key=lambda m: m.score, reverse=True)
+    return matches
 
 
-def match_job_to_resumes(job_id: str, top_k: int = 5):
-    """Match a job against all resumes"""
-    try:
-        store = VectorStore()
-        
-        # Get job embedding
-        result = store.job_collection.get(ids=[job_id], include=['embeddings'])
-        
-        # Check if job exists - SAFE WAY
-        if result is None:
-            print(f"Job {job_id} not found - no result")
-            return []
-        
-        if len(result['ids']) == 0:
-            print(f"Job {job_id} not found in database")
-            return []
-        
-        if len(result['embeddings']) == 0:
-            print(f"No embeddings found for job {job_id}")
-            return []
-        
-        # Get embedding
-        job_embedding = result['embeddings'][0]
-        
-        # Search resumes
-        results = store.resume_collection.query(
-            query_embeddings=[job_embedding],
-            n_results=top_k
+def match_jobs_to_resume(
+    resume_text: str,
+    top_k: int = 10,
+) -> list[dict]:
+    """
+    Reverse lookup: given a resume, find best matching jobs.
+    """
+    processed = preprocess_pipeline(resume_text)
+    query_embedding = generate_embedding(processed)
+
+    store = get_vector_store()
+    results = store.search_jobs(query_embedding, top_k=top_k)
+
+    matches = []
+    for doc_id, dist, doc, meta in zip(
+        results["ids"][0],
+        results["distances"][0],
+        results["documents"][0],
+        results["metadatas"][0],
+    ):
+        score = round(max(0.0, 1.0 - dist), 4)
+        matches.append(
+            {
+                "id": doc_id,
+                "score": score,
+                "job_title": meta.get("job_title", meta.get("Title", "Unknown")),
+                "preview": doc[:300] if doc else "",
+                "metadata": meta,
+            }
         )
-        
-        matches = []
-        # Build matches safely
-        if results and len(results['ids']) > 0 and len(results['ids'][0]) > 0:
-            for i in range(len(results['ids'][0])):
-                distance = results['distances'][0][i] if results.get('distances') else 0
-                similarity = float(1 - distance)
-                
-                matches.append({
-                    'resume_id': str(results['ids'][0][i]),
-                    'similarity_score': round(similarity, 4),
-                    'rank': i + 1
-                })
-        
-        return matches
-    
-    except Exception as e:
-        print(f"Error in match_job_to_resumes: {e}")
-        import traceback
-        traceback.print_exc()
-        return []
+
+    matches.sort(key=lambda m: m["score"], reverse=True)
+    return matches

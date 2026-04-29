@@ -1,19 +1,19 @@
-from app.services.vector_store import resume_collection
-from app.services.embeddings import generate_embedding
-from app.services.preprocessing import preprocess_pipeline
+"""
+Unified search helpers — thin wrappers used by the API routes.
+"""
+from app.services.matching_engine import match_resumes_to_job, match_jobs_to_resume
+from app.models.schemas import ResumeMatch
 
-def search_resumes(job_description: str, k: int = 5):
-    processed = preprocess_pipeline(job_description)
-    query_embedding = generate_embedding(processed)
 
-    results = resume_collection.query(
-        query_embeddings=[query_embedding],
-        n_results=k
-    )
+def search_resumes_for_job(
+    job_description: str,
+    top_k: int = 10,
+) -> list[ResumeMatch]:
+    return match_resumes_to_job(job_description, top_k=top_k)
 
-    output = []
-    for i, doc_id in enumerate(results["ids"][0]):
-        score = results["distances"][0][i]
-        output.append({"id": doc_id, "score": 1 - score})
 
-    return output
+def search_jobs_for_resume(
+    resume_text: str,
+    top_k: int = 10,
+) -> list[dict]:
+    return match_jobs_to_resume(resume_text, top_k=top_k)

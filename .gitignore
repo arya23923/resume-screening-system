@@ -1,0 +1,109 @@
+```gitignore
+# -----------------------------
+# OS / Editor files
+# -----------------------------
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# -----------------------------
+# Python
+# -----------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
+
+# Secrets / env files
+.env
+.env.*
+!.env.example
+
+# SQLite / local DBs
+*.db
+*.sqlite
+*.sqlite3
+
+# Uploads / temp data
+tmp/
+temp/
+uploads/
+cache/
+
+# -----------------------------
+# Node / React / Frontend
+# -----------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build outputs
+frontend/build/
+frontend/dist/
+dist/
+build/
+
+# Framework caches
+.next/
+.nuxt/
+.parcel-cache/
+vite.svg
+
+# -----------------------------
+# Test / coverage
+# -----------------------------
+coverage/
+*.lcov
+
+# -----------------------------
+# Large model/data files
+# -----------------------------
+*.pkl
+*.joblib
+*.h5
+*.hdf5
+*.pt
+*.pth
+*.onnx
+*.parquet
+*.csv.gz
+*.zip
+*.tar
+*.gz
+
+# Keep small sample data if needed
+# !data/sample.csv
+
+# -----------------------------
+# Misc
+# -----------------------------
+*.tmp
+*.bak
+```

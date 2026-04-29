@@ -1,91 +1,80 @@
+"""
+Matching & AI summary routes.
+"""
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from typing import List, Optional
-from app.services.matching_engine import match_resume_to_jobs, match_job_to_resumes
+from app.models.schemas import (
+    JobDescriptionInput,
+    MatchResponse,
+    SummaryRequest,
+    SummaryResponse,
+    StatsResponse,
+)
+from app.services.matching_engine import match_resumes_to_job, match_jobs_to_resume
+from app.services.llm_service import generate_candidate_summary, check_ollama_available
+from app.services.vector_store import get_vector_store
+from app.core.config import settings
 
 router = APIRouter()
 
-# Request/Response models
-class MatchRequest(BaseModel):
-    resume_id: str
-    top_k: Optional[int] = 5
 
-class JobMatchRequest(BaseModel):
-    job_id: str
-    top_k: Optional[int] = 5
-
-class MatchItem(BaseModel):
-    job_id: str
-    similarity_score: float
-    rank: int
-
-class JobMatchItem(BaseModel):
-    resume_id: str
-    similarity_score: float
-    rank: int
-
-class MatchResponse(BaseModel):
-    status: str
-    data: dict
-    metadata: dict
-
-@router.post("/resume-to-jobs")
-async def resume_to_jobs(request: MatchRequest):
-    """Match a resume against all jobs"""
+@router.post("/resumes", response_model=MatchResponse)
+async def find_matching_resumes(body: JobDescriptionInput):
     try:
-        matches = match_resume_to_jobs(request.resume_id, request.top_k)
-        
-        return {
-            "status": "success",
-            "data": {
-                "matches": matches
-            },
-            "metadata": {
-                "resume_id": request.resume_id,
-                "total_matches": len(matches),
-                "top_k": request.top_k
-            }
-        }
+        matches = match_resumes_to_job(body.description, top_k=body.top_k)
+        return MatchResponse(job_title=body.title, matches=matches, total_found=len(matches))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/job-to-resumes")
-async def job_to_resumes(request: JobMatchRequest):
-    """Match a job against all resumes"""
+
+@router.post("/summary")
+async def get_candidate_summary(body: SummaryRequest):
+    """
+    Match a resume against a job description — returns strengths, gaps,
+    interview questions, and a hiring recommendation.
+    """
     try:
-        matches = match_job_to_resumes(request.job_id, request.top_k)
-        
-        return {
-            "status": "success",
-            "data": {
-                "matches": matches
-            },
-            "metadata": {
-                "job_id": request.job_id,
-                "total_matches": len(matches),
-                "top_k": request.top_k
-            }
-        }
+        result = await generate_candidate_summary(
+            resume_text=body.resume_text,
+            job_description=body.job_description,
+            candidate_id=body.candidate_id or "unknown",
+        )
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/score/{resume_id}/{job_id}")
-async def get_match_score(resume_id: str, job_id: str):
-    """Get similarity score between a specific resume and job"""
+
+@router.post("/analyze")
+async def analyze_resume(body: dict):
+    """
+    Deep standalone resume analysis via LLaMA:
+    skills, experience level, gaps, role suggestions, resume quality, next steps.
+    """
+    from app.services.llm_service import analyze_resume_for_roles
+    from app.services.text_cleaner import clean_pdf_text
+
+    resume_text = body.get("resume_text", "")
+    if not resume_text.strip():
+        raise HTTPException(status_code=422, detail="resume_text is required")
+
+    # Always clean the text before sending to LLM
+    resume_text = clean_pdf_text(resume_text)
+
     try:
-        # Get matches for this resume
-        matches = match_resume_to_jobs(resume_id, top_k=100)
-        
-        # Find the specific job
-        for match in matches:
-            if match['job_id'] == job_id:
-                return {
-                    "resume_id": resume_id,
-                    "job_id": job_id,
-                    "similarity_score": match['similarity_score'],
-                    "match_percentage": f"{match['similarity_score'] * 100:.1f}%"
-                }
-        
-        raise HTTPException(status_code=404, detail="Match not found")
+        result = await analyze_resume_for_roles(resume_text)
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/stats", response_model=StatsResponse)
+async def get_stats():
+    store = get_vector_store()
+    counts = store.get_collection_stats()
+    llm_ok = await check_ollama_available()
+    return StatsResponse(
+        resumes_indexed=counts["resumes"],
+        jobs_indexed=counts["jobs"],
+        embedding_model=settings.EMBEDDING_MODEL,
+        llm_model=settings.OLLAMA_MODEL,
+        llm_available=llm_ok,
+    )

@@ -1,30 +1,45 @@
+"""
+Embedding service using sentence-transformers (all-MiniLM-L6-v2).
+384-dimensional dense vectors, fast and free.
+"""
 from sentence_transformers import SentenceTransformer
+from app.core.config import settings
 import numpy as np
 
+_model: SentenceTransformer = None
+
+
+def get_model() -> SentenceTransformer:
+    global _model
+    if _model is None:
+        print(f"[Embeddings] Loading model: {settings.EMBEDDING_MODEL}")
+        _model = SentenceTransformer(settings.EMBEDDING_MODEL)
+    return _model
+
+
+def generate_embedding(text: str) -> list[float]:
+    """Embed a single text string."""
+    model = get_model()
+    return model.encode(text, normalize_embeddings=True).tolist()
+
+
+def embed_documents(texts: list[str], batch_size: int = 64) -> list[list[float]]:
+    """Batch-embed multiple documents."""
+    model = get_model()
+    embeddings = model.encode(
+        texts,
+        batch_size=batch_size,
+        normalize_embeddings=True,
+        show_progress_bar=len(texts) > 100,
+    )
+    return embeddings.tolist()
+
+
 class SentenceTransformerEmbeddings:
-    def __init__(self, model_name="all-MiniLM-L6-v2"):
-        self.model = SentenceTransformer(model_name)
-    
-    def embed_documents(self, texts):
-        """Embed a list of documents with error handling"""
-        # Clean the texts - replace None/NaN with empty string
-        cleaned_texts = []
-        for text in texts:
-            if text is None or (isinstance(text, float) and np.isnan(text)):
-                cleaned_texts.append("")
-            elif not isinstance(text, str):
-                cleaned_texts.append(str(text))
-            else:
-                cleaned_texts.append(text)
-        
-        # Replace empty strings with a placeholder
-        cleaned_texts = [t if t.strip() else "empty document" for t in cleaned_texts]
-        
-        # Generate embeddings
-        return self.model.encode(cleaned_texts).tolist()
-    
-    def embed_query(self, text):
-        """Embed a single query"""
-        if not text or not isinstance(text, str):
-            text = "empty query"
-        return self.model.encode([text]).tolist()[0]
+    """Drop-in wrapper for compatibility with older code."""
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return embed_documents(texts)
+
+    def embed_query(self, text: str) -> list[float]:
+        return generate_embedding(text)
