@@ -6,7 +6,8 @@ export interface StoredResume {
   name: string;
   category: string;
   uploadedAt: string;
-  preview: string;
+  preview: string;        // clean readable text snippet
+  fullText: string;       // full clean text for AI analysis
   metadata: Record<string, string>;
   shortlisted?: boolean;
 }
@@ -26,22 +27,29 @@ export interface AISummary {
   gaps: string[];
   recommendation: string;
   fit_score: number;
+  interview_questions?: string[];
+  hiring_advice?: string;
 }
 
 export interface RoleSuggestion {
   role: string;
-  match_reason: string;
-  fit_level: "Excellent" | "Good" | "Fair";
+  reason: string;
+  fit: "Excellent" | "Good" | "Fair";
 }
 
 export interface ResumeAnalysis {
   candidate_name: string;
+  experience_level: string;
+  years_experience: string;
+  current_or_recent_role: string;
   summary: string;
   top_skills: string[];
-  experience_level: string;
-  suggested_roles: RoleSuggestion[];
-  strengths: string[];
+  skill_gaps: string[];
+  strongest_points: string[];
   areas_to_improve: string[];
+  suggested_roles: RoleSuggestion[];
+  resume_quality: { score: number; comment: string };
+  what_to_do_next: string[];
 }
 
 class ApiClient {
@@ -49,7 +57,11 @@ class ApiClient {
 
   setToken(t: string) { this.token = t; localStorage.setItem("auth_token", t); }
   loadToken() { this.token = localStorage.getItem("auth_token"); }
-  clearToken() { this.token = null; localStorage.removeItem("auth_token"); localStorage.removeItem("resume_library"); }
+  clearToken() {
+    this.token = null;
+    localStorage.removeItem("auth_token");
+    localStorage.removeItem("resume_library");
+  }
 
   private h(extra: Record<string, string> = {}): Record<string, string> {
     const h: Record<string, string> = { "Content-Type": "application/json", ...extra };
@@ -87,7 +99,11 @@ class ApiClient {
   async getSummary(resumeText: string, jobDescription: string, candidateId?: string): Promise<AISummary> {
     const res = await fetch(`${BASE_URL}/match/summary`, {
       method: "POST", headers: this.h(),
-      body: JSON.stringify({ resume_text: resumeText, job_description: jobDescription, candidate_id: candidateId }),
+      body: JSON.stringify({
+        resume_text: resumeText,
+        job_description: jobDescription,
+        candidate_id: candidateId,
+      }),
     });
     if (!res.ok) throw new Error("Summary failed");
     return res.json();
@@ -98,14 +114,11 @@ class ApiClient {
       method: "POST", headers: this.h(),
       body: JSON.stringify({ resume_text: resumeText }),
     });
-    if (!res.ok) {
-      // fallback: use summary endpoint with a generic JD
-      const s = await this.getSummary(resumeText, "We are looking for skilled professionals across engineering, data, product, and management roles.", "analyze");
-      return this._fallbackAnalysis(resumeText, s);
-    }
+    if (!res.ok) throw new Error("Analysis failed");
     return res.json();
   }
 
+<<<<<<< HEAD
   private _fallbackAnalysis(text: string, s: AISummary): ResumeAnalysis {
     const words = text.toLowerCase().split(/\s+/);
     const skills: string[] = [];
@@ -128,6 +141,18 @@ class ApiClient {
   }
 
   async uploadResume(file: File): Promise<{ message: string; id?: string; preview?: string }> {
+=======
+  /**
+   * Upload a PDF to backend — backend extracts clean text via pypdf.
+   * Returns: id, message, raw_text (clean English), preview
+   */
+  async uploadResume(file: File): Promise<{
+    message: string;
+    id: string;
+    raw_text: string;
+    preview: string;
+  }> {
+>>>>>>> 0c418cb (updated ai workflow)
     const form = new FormData();
     form.append("file", file);
     const res = await fetch(`${BASE_URL}/ingest/resume/upload`, {
@@ -135,7 +160,29 @@ class ApiClient {
       headers: this.token ? { Authorization: `Bearer ${this.token}` } : {},
       body: form,
     });
-    if (!res.ok) throw new Error("Upload failed");
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Upload failed");
+    }
+    return res.json();
+  }
+
+  /**
+   * Extract clean text from a PDF without indexing it.
+   * Used by AI Analysis page.
+   */
+  async extractTextFromFile(file: File): Promise<{ text: string; preview: string }> {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`${BASE_URL}/ingest/resume/extract-text`, {
+      method: "POST",
+      headers: this.token ? { Authorization: `Bearer ${this.token}` } : {},
+      body: form,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Text extraction failed");
+    }
     return res.json();
   }
 
@@ -157,9 +204,10 @@ class ApiClient {
     return res.json();
   }
 
-  // ── Local resume library (stored in localStorage for demo) ─────────────────
+  // ── Local resume library (localStorage) ──────────────────────────────────────
   getResumeLibrary(): StoredResume[] {
-    try { return JSON.parse(localStorage.getItem("resume_library") || "[]"); } catch { return []; }
+    try { return JSON.parse(localStorage.getItem("resume_library") || "[]"); }
+    catch { return []; }
   }
 
   addToLibrary(r: StoredResume) {

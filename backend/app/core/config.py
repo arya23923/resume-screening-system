@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 from pydantic_settings import BaseSettings
 
 # Base project directory
@@ -24,19 +25,20 @@ class Settings(BaseSettings):
     # App
     APP_NAME: str = "AI Resume Screening System"
     DEBUG: bool = False
-    
+
     # JWT Auth
     SECRET_KEY: str = "your-super-secret-jwt-key-change-in-production-32chars"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
-    
-    # Ollama / LLaMA settings (free, local)
-    OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL: str = "llama3.2"  # or llama3, mistral, etc.
-    
+
+    GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
+    # Kept for backward-compatibility (used in stats endpoint label)
+    OLLAMA_MODEL: str = "llama3-70b-8192 (Groq)"
+
     # Embedding model
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
-    
+
     # Matching defaults
     DEFAULT_TOP_K: int = 10
 
