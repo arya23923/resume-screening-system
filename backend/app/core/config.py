@@ -1,5 +1,9 @@
 from pathlib import Path
 import os
+<<<<<<< HEAD
+=======
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+>>>>>>> 5cd046b (updated project now)
 from pydantic_settings import BaseSettings
 
 # Base project directory
@@ -27,17 +31,14 @@ class Settings(BaseSettings):
     DEBUG: bool = False
 
     # JWT Auth
-    SECRET_KEY: str = "your-super-secret-jwt-key-change-in-production-32chars"
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
+    SECRET_KEY = "your-super-secret-jwt-key-change-in-production-32chars"
+    ALGORITHM = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 
     GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-    # Kept for backward-compatibility (used in stats endpoint label)
-    OLLAMA_MODEL: str = "llama3-70b-8192 (Groq)"
-
-    # Embedding model
-    EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
+    OLLAMA_MODEL = "llama3-70b-8192 (Groq)"
+    EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 
     # Matching defaults
     DEFAULT_TOP_K: int = 10
