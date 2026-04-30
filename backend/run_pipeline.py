@@ -4,6 +4,9 @@ Full pipeline runner — run once to set up the system.
 Usage:  cd backend && python run_pipeline.py
 """
 import subprocess, os, sys
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def run(cmd, label):
     print(f"\n▶ {label}…")

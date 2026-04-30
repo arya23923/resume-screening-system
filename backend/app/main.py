@@ -1,10 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
+from dotenv import load_dotenv
 from app.api.routes_auth import router as auth_router
 from app.api.routes_ingest import router as ingest_router
 from app.api.routes_match import router as match_router
 from app.api.routes_shortlist import router as shortlist_router
+import os
+load_dotenv()
+groq_key = os.getenv("GROQ_API_KEY")
 
 app = FastAPI(
     title="AI Resume Screening System",
